@@ -1,0 +1,66 @@
+{
+  "manifest_version": 3,
+  "name": "MDL Sync",
+  "version": "0.1.1",
+  "description": "Sincroniza automaticamente o progresso de episódios assistidos com o MyDramaList.",
+  "permissions": ["storage", "tabs", "scripting", "notifications"],
+  "host_permissions": [
+    "https://mydramalist.com/*",
+    "https://clubdodorama.com/*",
+    "https://www.viki.com/*",
+    "https://wetv.vip/*",
+    "https://kisskh.co/*",
+    "https://www.iq.com/*",
+    "https://*.123flmsfree.com/*",
+    "https://ver.123pelicula.com/*",
+    "https://flixlat.com/*",
+    "https://play.cuevana19.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://clubdodorama.com/episodios/*"],
+      "js": ["content/common.js", "content/clubdodorama.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.viki.com/videos/*"],
+      "js": ["content/common.js", "content/viki.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://wetv.vip/en/play/*"],
+      "js": ["content/common.js", "content/wetv.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://kisskh.co/Drama/*"],
+      "js": ["content/common.js", "content/kisskh.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.iq.com/play/*"],
+      "js": ["content/common.js", "content/iqiyi.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://*.123flmsfree.com/*/detail/drama/*",
+        "https://ver.123pelicula.com/*/detail/drama/*",
+        "https://flixlat.com/*/detail/drama/*",
+        "https://play.cuevana19.com/*/detail/drama/*"
+      ],
+      "js": ["content/common.js", "content/detail-drama-template.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "MDL Sync"
+  },
+  "icons": {
+    "128": "icons/icon128.png"
+  }
+}

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { width: 300px; font-family: sans-serif; padding: 12px; background: #1c1c1e; color: #fff; }
+    h1 { font-size: 14px; margin: 0 0 10px; }
+    h2 { font-size: 12px; margin: 14px 0 6px; color: #aaa; text-transform: uppercase; }
+    .item { font-size: 13px; background: #2c2c2e; padding: 8px 10px; border-radius: 8px; margin-bottom: 6px; }
+    .map-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px;
+      background: #2c2c2e; padding: 6px 8px; border-radius: 6px; margin-bottom: 4px; }
+    .map-row a { color: #4da3ff; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px; }
+    .map-row button { background: #e74c3c; border: none; color: #fff; border-radius: 4px; padding: 3px 6px; cursor: pointer; font-size: 11px; }
+    .empty { font-size: 12px; color: #999; }
+  </style>
+</head>
+<body>
+  <h1>MDL Sync</h1>
+  <div id="lastDetected" class="empty">Nenhum episódio detectado ainda.</div>
+
+  <h2>Títulos mapeados</h2>
+  <div id="mappings" class="empty">Nenhum título mapeado ainda.</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
