@@ -1,77 +1,20 @@
-🇬🇧 English
+# MDL Sync (protótipo) — v0.1.2
 
-# MDL Sync (prototype) — v0.1.1
+## Novidade da v0.1.2
 
-## What's New in This Version — Auto-sync Based on Watch Percentage
+- **Nota opcional no último episódio**: quando a extensão detecta que você
+  chegou no último episódio de um drama (comparando com o total lido do
+  próprio MDL), o badge ganha uma linha extra opcional com um seletor de
+  nota (escala do MDL, 1.0 a 10.0) e um botão "Complete". O sync normal do
+  episódio continua funcionando igual sempre (manual ou automático) — a
+  nota é só um complemento, disponível a qualquer momento, antes ou depois
+  do episódio já ter sido sincronizado. Ao usar, marca o status como
+  "Completed" no MDL com a nota escolhida.
+- **Interface toda em inglês**: botões, badge, notificações e popup agora
+  estão em inglês (antes estavam em português).
+- **Ícone novo** da extensão.
 
-If a title **already has a saved mapping** (you have manually selected the correct MDL entry at least once), the extension now monitors the page's `<video>` element and automatically syncs the episode once it passes 80% — without requiring you to click the "Mark on MDL" button.
-
-* **New titles** (without a mapping yet) still require a manual click the first time — this is how the mapping is created.
-* The badge displays "🔄 auto 80%" when auto-sync is active for the current episode.
-* **Permanent "already synced" indicator**: as soon as an episode is synced (manually or automatically), this information is saved. The next time the page loads — even after exiting fullscreen, reloading the page, or reopening the browser — the button will already appear as "Already synced ✓" instead of the default "Mark on MDL". This is important for users who don't know that auto-sync exists (e.g. friends using the extension), so they won't be confused and click the button unnecessarily thinking nothing has been done.
-* **Native system notification**: since the badge is hidden when the video is in fullscreen (the browser only renders the fullscreen element, not the rest of the page), auto-sync also triggers a browser/OS notification when completed. This notification appears regardless of whether the video is in fullscreen or the tab is in the background.
-* Works best on sites that use the native HTML5 `<video>` tag. Sites that hide the video inside a third-party `<iframe>` may not work (due to the browser's cross-origin limitations) — in these cases, the manual button remains available as an alternative.
-
-## How to Install (Developer Mode)
-
-1. Open `chrome://extensions` (or `edge://extensions`).
-2. Enable **Developer mode** in the top-right corner.
-3. Click **Load unpacked** and select this folder.
-4. Open an episode page on clubdodorama, e.g.:
-   https://clubdodorama.com/episodios/awaken-1x10/
-5. A badge should appear in the bottom-right corner showing the detected title/episode.
-
-## Current Status
-
-* ✅ Title + season + episode detection on clubdodorama.com
-* ✅ UI badge with a "Mark on MDL" button
-* ✅ Episode marking through the "Add to List" dialog (click → fill input → Submit)
-* ✅ Manual matching the first time (you choose the correct result from the search, since titles may differ between sites — e.g. "Awaken" vs "The Awake")
-* ✅ Mapping cache (`chrome.storage.local`, key `mdlMap`) — from the second time onward, the search is skipped and the extension goes directly to the correct page
-* ✅ Popup displays mapped titles and allows you to remove them (to correct a wrong selection)
-
-### How Matching Currently Works
-
-1. First episode of a new title → opens the MDL search in a visible tab. You click the correct result, the extension detects the navigation and saves the mapping.
-2. Subsequent episodes of the same title → goes directly to the correct page, using a hidden tab without performing another search.
-3. Selected the wrong title? Open the extension popup, find the entry under **"Mapped Titles"**, and click **"Remove"** — the next sync will ask you to choose again.
-
-## Currently Supported Sites
-
-* clubdodorama.com
-* viki.com
-* wetv.vip
-* kisskh.co
-* iq.com (iQIYI)
-* 123flmsfree.com, ver.123pelicula.com, flixlat.com, play.cuevana19.com
-  (all use the same parser, `content/detail-drama-template.js`, because they share the same URL structure)
-
-## How to Add a New Streaming Site
-
-Each site requires 2 things:
-
-1. A file at `content/<site-name>.js` containing a `SITE_PARSER` object implementing `getSeasonEpisode()` (returning `{ season, episode, slug }`) and `getTitle()` — use `content/viki.js` or `content/clubdodorama.js` as a template. At the end of the file, call `window.MDLSyncCommon.init(SITE_PARSER)`.
-2. An entry in `content_scripts` in `manifest.json` pointing to the domain, **always loading `content/common.js` before the site-specific file**:
-
-```json
-{
-  "matches": ["https://othersite.com/some/pattern/*"],
-  "js": ["content/common.js", "content/othersite.js"],
-  "run_at": "document_idle"
-}
-```
-
-Also add the domain to `host_permissions`.
-
-Nothing else needs to be changed — the badge, background communication, mapping cache, and MDL sync logic are all shared through `common.js` and `background.js`.
-
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-🇧🇷 Português
-
-# MDL Sync (protótipo) — v0.1.1
-
-## Novidade desta versão — Auto-sync por % assistido
+## Novidade da v0.1.1 — Auto-sync por % assistido
 
 Se um título **já tem mapeamento salvo** (você já resolveu manualmente qual
 é a entrada certa no MDL pelo menos uma vez), a extensão passa a escutar o

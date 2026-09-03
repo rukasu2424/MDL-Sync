@@ -10,11 +10,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     syncEpisodeToMDL(message.data)
       .then((result) => {
-        if (isAuto) notify(`✓ ${result.title} — Ep ${result.episode}`, "Sincronizado automaticamente no MDL.");
+        if (isAuto) {
+          const label = result.rating ? `Completed with rating ${result.rating}!` : "Synced automatically on MDL.";
+          notify(`✓ ${result.title} — Ep ${result.episode}`, label);
+        }
         sendResponse({ ok: true, result });
       })
       .catch((err) => {
-        if (isAuto) notify(`✗ Falha ao sincronizar`, err.message);
+        if (isAuto) notify(`✗ Sync failed`, err.message);
         sendResponse({ ok: false, error: err.message });
       });
     return true; // resposta assíncrona
@@ -32,41 +35,54 @@ function notify(title, message) {
   });
 }
 
-async function syncEpisodeToMDL({ title, season, episode, key }) {
+// `rating` é opcional (1.0 a 10.0, de 0.5 em 0.5). Quando presente, marca
+// como "Completed" e aplica a nota — usado no último episódio de um drama.
+async function syncEpisodeToMDL({ title, season, episode, key, rating }) {
   // 1) Já sabemos pra onde esse título aponta no MDL?
   const stored = await chrome.storage.local.get("mdlMap");
   const mdlMap = stored.mdlMap || {};
-  let mdlUrl = mdlMap[key];
+  let entry = mdlMap[key];
 
-  if (!mdlUrl) {
+  // Compatibilidade: mapeamentos salvos antes da v0.1.2 eram só a URL como
+  // string. Converte pro formato novo { url, total } sem perder o que já
+  // estava salvo.
+  if (entry && typeof entry === "string") {
+    entry = { url: entry, total: null };
+  }
+
+  if (!entry) {
     // 2) Primeira vez: abre a busca numa aba VISÍVEL e deixa o usuário
     // clicar no resultado certo (evita sync errado por título diferente
     // entre sites, ex: "Awaken" no site vs "The Awake" no MDL).
-    mdlUrl = await resolveTitleManually(title);
-    if (!mdlUrl) throw new Error("Você fechou a aba antes de escolher o título certo.");
-
-    mdlMap[key] = mdlUrl;
-    await chrome.storage.local.set({ mdlMap });
+    const mdlUrl = await resolveTitleManually(title);
+    if (!mdlUrl) throw new Error("You closed the tab before choosing the correct title.");
+    entry = { url: mdlUrl, total: null };
   }
 
   // 3) Já sabemos a página certa — marca o episódio (aba oculta agora, já
   // que não precisa mais de intervenção manual).
-  const tab = await chrome.tabs.create({ url: mdlUrl, active: false });
+  const tab = await chrome.tabs.create({ url: entry.url, active: false });
   await waitForTabLoad(tab.id);
 
-  const [{ result: marked }] = await chrome.scripting.executeScript({
+  const [{ result }] = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     func: markEpisodeWatchedOnMDL,
-    args: [episode]
+    args: [episode, rating || null]
   });
 
   await chrome.tabs.remove(tab.id);
 
-  if (!marked) {
-    throw new Error("Cheguei na página do título, mas não consegui marcar o episódio.");
+  if (!result || !result.marked) {
+    throw new Error("Reached the title page, but couldn't mark the episode.");
   }
 
-  return { title, season, episode, url: mdlUrl };
+  // Guarda/atualiza o total de episódios pra próxima vez sabermos se é o
+  // último sem precisar abrir a aba do MDL de novo.
+  entry.total = result.total ?? entry.total;
+  mdlMap[key] = entry;
+  await chrome.storage.local.set({ mdlMap });
+
+  return { title, season, episode, url: entry.url, total: entry.total, rating: rating || null };
 }
 
 // Abre a busca numa aba ativa e espera o usuário navegar até a página
@@ -112,9 +128,13 @@ function resolveTitleManually(title) {
 // ------------------------------------------------------------
 // Roda DENTRO da página do MDL (contexto da aba), via chrome.scripting.
 // Fluxo: clica em "Add to List" -> espera o dialog abrir -> escreve o
-// número de episódios assistidos no input -> clica em "Submit".
+// número de episódios assistidos -> (se tiver rating) marca como
+// Completed e aplica a nota -> clica em "Submit".
+//
+// Retorna { marked: boolean, total: number|null } — "total" vem do
+// atributo max do próprio input de episódios.
 // ------------------------------------------------------------
-function markEpisodeWatchedOnMDL(episodeNumber) {
+function markEpisodeWatchedOnMDL(episodeNumber, rating) {
   function waitFor(selector, timeout = 6000) {
     return new Promise((resolve, reject) => {
       const start = Date.now();
@@ -131,6 +151,16 @@ function markEpisodeWatchedOnMDL(episodeNumber) {
     });
   }
 
+  // Setter nativo — necessário pra frameworks reativos (Vue/React)
+  // perceberem a mudança de valor, já que setar .value direto é ignorado.
+  function setNativeValue(el, value) {
+    const proto = el.tagName === "SELECT" ? window.HTMLSelectElement.prototype : window.HTMLInputElement.prototype;
+    const nativeSetter = Object.getOwnPropertyDescriptor(proto, "value").set;
+    nativeSetter.call(el, value);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
   return (async () => {
     try {
       const addBtn = document.querySelector(".btn-manage-list");
@@ -139,16 +169,27 @@ function markEpisodeWatchedOnMDL(episodeNumber) {
 
       // espera o dialog do Element UI renderizar e o input aparecer
       const input = await waitFor('.el-input__inner[type="number"]');
+      const total = input.max ? parseInt(input.max, 10) : null;
 
-      // setter nativo — necessário pra frameworks reativos (Vue/React)
-      // perceberem a mudança de valor, já que setar .value direto é ignorado.
-      const nativeSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        "value"
-      ).set;
-      nativeSetter.call(input, episodeNumber);
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(new Event("change", { bubbles: true }));
+      setNativeValue(input, episodeNumber);
+
+      // Último episódio: marca como Completed automaticamente, independente
+      // de ter nota ou não (a nota é só um extra opcional por cima disso).
+      const isFinalEpisode = total !== null && episodeNumber === total;
+      if (isFinalEpisode) {
+        const statusSelect = document.querySelector("select.select-watch-status");
+        if (statusSelect) setNativeValue(statusSelect, "2"); // 2 = Completed
+      }
+
+      // Nota (opcional, pode chegar numa chamada separada, depois do
+      // episódio já ter sido marcado como Completed antes).
+      if (rating) {
+        const statusSelect = document.querySelector("select.select-watch-status");
+        if (statusSelect) setNativeValue(statusSelect, "2"); // 2 = Completed
+
+        const ratingSelect = document.querySelector("select.select-rating");
+        if (ratingSelect) setNativeValue(ratingSelect, String(rating));
+      }
 
       // acha o botão de submit pelo texto do <span> filho
       const submitSpan = Array.from(document.querySelectorAll("span")).find(
@@ -158,10 +199,10 @@ function markEpisodeWatchedOnMDL(episodeNumber) {
       const submitBtn = submitSpan.closest("button") || submitSpan;
       submitBtn.click();
 
-      return true;
+      return { marked: true, total };
     } catch (err) {
       console.warn("[MDL Sync] Erro ao marcar episódio:", err.message);
-      return false;
+      return { marked: false, total: null };
     }
   })();
 }
